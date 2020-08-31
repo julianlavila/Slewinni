@@ -1,5 +1,5 @@
 ---
-title: "ScriptTrabajo"
+title: "Area de Calibracion Buffer"
 author: "Julian Avila-Jimenez"
 date: "29/8/2020"
 output: 
@@ -134,11 +134,20 @@ plot(pts_buf_500km, col="red", add=T)
 
 ## Area de calibracion M
 
-Ahora si vamos a crear el area de calibracion cortando las capas ambientales al tama;o del buffer creado para cada registro de **S. lewinni**
+Ahora si vamos a crear el area de calibracion cortando las capas ambientales al tama;o del buffer creado para cada registro de *S. lewinni*
 
 ```{r}
 r2 <- crop(lyTemp, extent(pts_buf_500km))
 r3 <- mask(lyTemp, pts_buf_500km)
 plot(r3$Present.Surface.Temperature.Mean)
+
+```
+
+Luego puedes usar las siguientes lineas de codigo para guardar los raster cortados con el buffer en la carpeta de M_variables
+
+```{r}
+
+#setwd("./Slewinni/M_variables/Set1")
+#writeRaster(r3, filename=names(r3), bylayer=TRUE,format="ascii")
 
 ```
