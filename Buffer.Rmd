@@ -1,0 +1,144 @@
+---
+title: "ScriptTrabajo"
+author: "Julian Avila-Jimenez"
+date: "29/8/2020"
+output: 
+  html_document:
+    toc: yes
+    toc_depth: 3
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = F, cache = T)
+library(tidyverse)
+library(raster)
+library(sp)
+library(knitr)
+library(kableExtra)
+```
+
+## Proceso creacion del Buffer 
+
+Partimos que ya tienes los registros limpios en un objeto llamado tiburon.x que es el resultado de la limpieza hecha en el paso anterior con la libreria [CoordinateCleanner](https://github.com/ropensci/CoordinateCleaner)
+
+Este objeto lo vamos a convertir en un dataframe para poder trabajar con el
+
+```{r}
+tiburon.x<-read.csv("./tiburon.x.csv") 
+
+tiburon.x %>% head(10) #10 primeros registros de la base de datos
+
+class(tiburon.x)
+
+tiburon.x <- as.data.frame(tiburon.x)
+
+class(tiburon.x)
+
+tiburon.x %>% kable() %>% kable_styling() %>%
+  scroll_box(width = "90%", height = "400px")
+
+dplyr::glimpse(tiburon.x)
+
+
+tiburon.p<- tiburon.x #nuevo objeto para conservar el anterior sin modificacion
+```
+
+---
+
+Vamos a utilizar la libreria [Geobuffer](https://github.com/valentinitnelav/geobuffer) que nos va a permitir crear un buffer geodesico alrededor de los puntos de ocurrencias de un tamaño dado en metros. (Un buffer geodesico no se ve afectado por la distorsion de los sistemas de coordenadas proyectados) 
+
+```{r}
+coordinates(tiburon.p) <- ~decimallongitude + decimallatitude
+
+prj <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs") # the projection string for WGS84
+
+tiburon.p <- SpatialPoints(tiburon.p, proj4string = prj)
+
+
+  
+#Buffer
+
+#devtools::install_github("valentinitnelav/geobuffer")
+library(geobuffer)
+pts_buf_500km <- geobuffer_pts(xy = tiburon.p, dist_m = 500*10^3)
+
+#carga de capas ambientales, en esta parte estoy pidiendo a R que lea todos los .asc
+#dentro de mi carpeta de capas ambientales, tu deberias reemplazar la ruta 
+
+lyTemp<-stack(list.files("C:/Users/julia/Documents/S.lewini/Raster",
+                           "*.asc$",full.names = TRUE, recursive = TRUE))
+
+#grafico de la primera capa ambiental
+plot(lyTemp[[1]])
+#grafico del buffer
+plot(pts_buf_500km, col="red", add=T)
+
+```
+
+Debido a que hay registros muy cercanos a los 180 grados de longitud al hacer el buffer se crean unas bandas que afectan el buffer, para solucionar esto vamos a retirar los registros problematicos  
+
+
+```{r}
+
+#por esta razon creamos un objeto nuevo, asi podemos llamar al
+#anterior como respaldo 
+
+tiburon.p<- tiburon.x
+
+#Ahora hacermos el filtrado de ocurrencias
+
+tiburon.p<- tiburon.p %>% 
+  filter(decimallongitude <178 & decimallongitude>-170) 
+
+#un poco de analisis exploratorio...
+
+hist(tiburon.p$decimallongitude, breaks=50)
+hist(tiburon.p$decimallatitude, breaks=50)
+
+min(tiburon.p$decimallongitude)
+max(tiburon.p$decimallongitude)
+
+tiburon.p %>%   
+  kable() %>% kable_styling() %>%
+  scroll_box(width = "90%", height = "400px")
+
+```
+
+Creamos el buffer de nuevo esta vez sin registros cercanos a 180 grados 
+
+```{r}
+
+coordinates(tiburon.p) <- ~decimallongitude + decimallatitude
+
+prj <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs") # the projection string for WGS84
+
+tiburon.p <- SpatialPoints(tiburon.p, proj4string = prj)
+
+
+  
+#Buffer 500km
+
+#Aqui puedes cambiar el valor a el tama;o de buffer que necesites
+
+#devtools::install_github("valentinitnelav/geobuffer")
+library(geobuffer)
+pts_buf_500km <- geobuffer_pts(xy = tiburon.p, dist_m = 500*10^3)
+
+#grafico de la primera capa ambiental
+plot(lyTemp[[1]])
+#grafico del buffer
+plot(pts_buf_500km, col="red", add=T)
+```
+
+## Area de calibracion M
+
+Ahora si vamos a crear el area de calibracion cortando las capas ambientales al tama;o del buffer creado para cada registro de **S. lewinni**
+
+```{r}
+r2 <- crop(lyTemp, extent(pts_buf_500km))
+r3 <- mask(lyTemp, pts_buf_500km)
+plot(r3$Present.Surface.Temperature.Mean)
+
+```
